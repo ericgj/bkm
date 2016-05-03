@@ -1,0 +1,5 @@
+.env
+scratch
+dump.rdb
+*.pyc
+*.pyo
