@@ -18,6 +18,9 @@ def dbkey_link(url):
 def dbkey_link_tags(url):
   return u'link|%s|tags' % url
 
+def dbkey_tags():
+  return u'tags'
+
 def dbkey_tag(tag):
   return u'tag|%s' % tag
 
@@ -69,6 +72,7 @@ def add_link(link, cnn):
         pipe.sadd(dbkey_link_tags(url), *tags) 
       
       for tag in tags:
+        pipe.sadd(dbkey_tags(), tag)
         pipe.sadd(dbkey_tag(tag), url)
 
       for (tokens, freq) in idx:

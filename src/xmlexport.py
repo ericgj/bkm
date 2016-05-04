@@ -1,3 +1,10 @@
+"""
+
+Exports an XML format similar to "Netscape bookmarks file", but without the
+jankiness. I refuse to replicate that crap!
+
+"""
+
 from xml.etree import cElementTree as ET
 
 from taskmonad import Task
@@ -7,8 +14,13 @@ import err
 def build(links):
   def _build(rej,res):
     try:
-      root = ET.Element('body')
-      dl = ET.SubElement(root,'dl')
+      root = ET.Element('ROOT')
+      meta = ET.SubElement(root, 'META', http_equiv="Content-Type", content="application/xml; charset=UTF-8")
+      title = ET.SubElement(root, 'TITLE')
+      title.text = "Bookmarks"
+      h1 = ET.SubElement(root, 'H1')
+      h1.text = "Bookmarks"
+      dl = ET.SubElement(root,'DL')
       build_links(dl, links)
       res(ET.ElementTree(root))
     except Exception as e:
@@ -29,11 +41,11 @@ def build_link(el, link):
   title = link.get('title',None)
   txt = link.get('comment',None)
 
-  dt = ET.SubElement(el, 'dt')
-  a = ET.SubElement(dt, 'a', href=href, tags=tags, add_date=ts, private=private)
+  dt = ET.SubElement(el, 'DT')
+  a = ET.SubElement(dt, 'A', href=href, tags=tags, add_date=ts, private=private)
   if not title is None:
     a.text = title.decode('utf-8')
   if not txt is None:
-   dd = ET.SubElement(el, 'dd')
+   dd = ET.SubElement(el, 'DD')
    dd.text = txt.decode('utf-8')
 
