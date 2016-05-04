@@ -9,6 +9,9 @@ import err
 
 from search import tokenize, normalize, index_key, index, nwords
 
+def dbkey_links():
+  return u'links'
+
 def dbkey_link(url):
   return u'link|%s' % url
 
@@ -47,18 +50,20 @@ def add_link(link, cnn):
   def _add(rej,res):
     pipe = cnn.pipeline()
     url = link.get('link')
+    title = link.get('title')
     tags = link.get('tags')
-    comment = link.get('comment')
+    comment = link.get('comment','')
+    dt = link.get('date')
     idx = (
       index(
         10, 
         tags, 
-        normalize(tokenize('' if comment is None else comment))
+        normalize(tokenize(title + " " + comment))
       )
     )
-    print idx
     
     try:
+      pipe.zadd(dbkey_links(), int(dt), url)
       pipe.hmset(dbkey_link(url), link)
       if len(tags) > 0:
         pipe.sadd(dbkey_link_tags(url), *tags) 
@@ -100,8 +105,8 @@ def get_link(cnn, url):
     except Exception as e:
       rej(err.build(e))
 
-  fields = [u'link',   u'date', u'comment', u'private']
-  parses = [ identity, int,   identity,  lambda v: v == "1" ]
+  fields = [u'link',   u'date', u'comment', u'private', u'title']
+  parses = [ identity, int,   identity,  lambda v: v == "1", identity ]
   return Task(_get)
 
 
@@ -111,6 +116,17 @@ def get_links(cnn, urls):
   return taskutil.all( map(get_link(cnn),urls) ).fmap(all_of)
 
 
+# Int -> Connection -> Task Error (List Url)
+@curry
+def find_all(limit,cnn):
+  def _get(rej,res):
+    try:
+      res( cnn.zrevrange( dbkey_links(), 0, limit ) )
+    except Exception as e:
+      rej(err.build(e))
+
+  return Task(_get)
+      
 # List String -> Connection -> Task Error (List Url)
 @curry
 def find_tagged_all(tags, cnn):
