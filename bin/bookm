@@ -5,100 +5,28 @@ import os.path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-
-from time import time
 from argparse import ArgumentParser
-import db
-from taskutil import pass_through
-from maybeutil import with_default
-
-def handle_success(link):
-  sys.stdout.write( with_default(view_no_link(), link.fmap(view_link)) )
-  sys.stdout.write("\n")
-
-def handle_error(e):
-  sys.stderr.write("An internal error occurred.\n\n")
-  sys.stderr.write(str(e))
-  sys.stderr.write("\n")
-  sys.exit(1)
-
-def view_no_link():
-  return "No link found, perhaps it wasn't saved correctly?"
-
-def view_link(link):
-  title = link.get('title','')
-  url = link.get('link','')
-  txt = link.get('comment','')
-  tags = ", ".join(link.get('tags',[]))
-  return "\n".join(
-    [
-      "=" * len(title),
-      title,
-      "=" * len(title),
-      "",
-      url,
-      "",
-      txt,
-      "",
-      "(no tags)" if len(tags)==0 else "tags: " + tags
-    ]
-  )
-
+from cmd.add import run as add_cmd
 
 def parse_tags(tstr):
   return [] if tstr is None else [t.strip() for t in tstr.split(',')]
 
-def parse_input(inp):
-  def _parse((section,title,comment,tags),line):
-    if len(line.strip()) == 0:
-      return (section+1,title,comment,tags)
-    else:
-      if section==0:
-        title = ("%s\n%s" % (title,line.strip())).strip()
-      elif section==1:
-        comment = ("%s\n%s" % (comment,line.strip())).strip()
-      elif section==2:
-        tags = tags + line.strip().split(",")
-    return (section,title,comment,tags)
+prog = ArgumentParser(description="URL bookmarks")
 
-  return reduce(_parse, inp, (0,'','',[]))[1:]
+commonprog = ArgumentParser(add_help=False)
+commonprog.add_argument('-c, --config', dest='config', type=str, help="backend config file (json)")
 
+subprog = prog.add_subparsers()
 
-def build_link(inp,dt):
-  inptitle, inpcomment, inptags = parse_input(inp)
-  link = args.url
-  priv = args.private == True
-  title = args.title or inptitle
-  comment = inpcomment
-  tags = args.tags or inptags
-  return {
-    'link': link,
-    'title': title,
-    'tags': tags,
-    'comment': comment,
-    'date': dt,
-    'private': priv
-  }
-
-prog = ArgumentParser(description="Bookmark, tag, and comment URLs")
-prog.add_argument('url', metavar='URL', type=str)
-prog.add_argument('-c, --config', dest='config', type=str, help="backend config file (json)")
-prog.add_argument('-t, --tags', dest='tags', type=parse_tags, default=[], help="comma-delimited tags")
-prog.add_argument('--title', dest='title', type=str, help="bookmark title")
-prog.add_argument('-p, --private', dest='private', action="store_true", help="set private")
+# ADD COMMAND
+subprog_add = subprog.add_parser('add', help='add a bookmark', description='Add a bookmark', parents=[commonprog])
+subprog_add.add_argument('url', metavar='URL', type=str)
+subprog_add.add_argument('-t, --tags', dest='tags', type=parse_tags, default=[], help="comma-delimited tags")
+subprog_add.add_argument('--title', dest='title', type=str, default='', help="bookmark title")
+subprog_add.add_argument('-p, --private', dest='private', action="store_true", help="set private")
+subprog_add.set_defaults(func=add_cmd)
 
 args = prog.parse_args()
-
-dt = int(time())
-sys.stderr.write("---> Enter comment, CTRL+D to finish <---\n")
-inp = sys.stdin.readlines()
-
-task = (
-  (( db.connect() 
-       >> pass_through(db.add_link( build_link(inp,dt) )) )
-       >> (lambda (cnn,_): db.get_link(cnn, args.url)) )
-)
-
-task.fork(handle_error, handle_success)
+args.func(args)
 
 
