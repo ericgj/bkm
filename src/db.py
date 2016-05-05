@@ -1,8 +1,8 @@
 import redis
 
-from f import curry, compose, identity, zipapply, flatten
+from f import curry, compose, identity, zipapply, flatten, flip, always
 from pymonad.Maybe import Just, Nothing
-from maybeutil import all_of
+from maybeutil import with_default, all_of
 from taskmonad import Task
 import taskutil
 import err
@@ -52,11 +52,11 @@ def add_link(link, cnn):
 
   def _add(rej,res):
     pipe = cnn.pipeline()
-    url = link.get('link')
-    title = link.get('title')
-    tags = link.get('tags')
-    comment = link.get('comment','')
-    dt = link.get('date')
+    url = link.get(u'link')
+    title = link.get(u'title','')
+    tags = link.get(u'tags',[])
+    comment = link.get(u'comment','')
+    dt = link.get(u'date',0)
     idx = (
       index(
         10, 
@@ -69,10 +69,10 @@ def add_link(link, cnn):
       pipe.zadd(dbkey_links(), int(dt), url)
       pipe.hmset(dbkey_link(url), link)
       if len(tags) > 0:
+        pipe.sadd(dbkey_tags(), *tags)
         pipe.sadd(dbkey_link_tags(url), *tags) 
       
       for tag in tags:
-        pipe.sadd(dbkey_tags(), tag)
         pipe.sadd(dbkey_tag(tag), url)
 
       for (tokens, freq) in idx:
@@ -87,19 +87,85 @@ def add_link(link, cnn):
 
 
 @curry
+def del_link(link, cnn):
+  def _count(x):
+    return 1
+
+  def _del(rej,res):
+    pipe = cnn.pipeline()
+    url = link.get(u'link')
+    title = link.get(u'title','')
+    tags = link.get(u'tags',[])
+    comment = link.get(u'comment','')
+    dt = link.get(u'date',0)
+    idx = (
+      index(
+        10, 
+        tags, 
+        normalize(tokenize(title + " " + comment))
+      )
+    )
+    
+    try:
+      pipe.zrem(dbkey_links(), url)
+      pipe.hdel(dbkey_link(url), *link.keys())
+      if len(tags) > 0:
+        pipe.srem(dbkey_tags(), *tags)
+        pipe.srem(dbkey_link_tags(url), *tags)
+
+      for tag in tags:
+        pipe.srem(dbkey_tag(tag), url)
+
+      for (tokens, freq) in idx:
+         pipe.zrem(dbkey_search_freq(tokens), url)
+
+      res(pipe.execute())
+
+    except Exception as e:
+      rej(err.build(e))
+
+  return Task(_del).fmap(_count)
+
+
+@curry
+def upsert_link(link, cnn):
+  def _maybe_del(mlink):
+    return (
+      with_default(
+        taskutil.resolve(Nothing), 
+        mlink.fmap(flip(del_link)(cnn))
+      )
+    )
+  
+  return (
+    (( get_link(cnn, link.get('link'))
+         >> _maybe_del )
+         >> always( add_link(link, cnn) ) )
+  )
+
+
+@curry
 def add_links(links, cnn):
   execs = [add_link(link,cnn) for link in links]
   return taskutil.all(execs).fmap(lambda rs: len(rs))
 
+@curry
+def upsert_links(links, cnn):
+  execs = [upsert_link(link,cnn) for link in links]
+  return taskutil.all(execs).fmap(lambda rs: len(rs))
 
-# Connection -> Url -> Task Error Link
+
+# Connection -> Url -> Task Error (Maybe Link)
 @curry
 def get_link(cnn, url):
+  def _emptystr(x):
+    return '' if x is None else unicode(x)
+
   def _get(rej,res):
     try:
       link = cnn.hmget(dbkey_link(url), *fields)
       tags = cnn.smembers(dbkey_link_tags(url))
-      if link is None:
+      if all( x is None for x in link ):
         res(Nothing)
       else:
         keys = fields + [u'tags']
@@ -109,8 +175,8 @@ def get_link(cnn, url):
     except Exception as e:
       rej(err.build(e))
 
-  fields = [u'link',   u'date', u'comment', u'private', u'title']
-  parses = [ identity, int,   identity,  lambda v: v == "1", identity ]
+  fields = [u'link',   u'date', u'comment', u'private',             u'title'  ]
+  parses = [_emptystr, int,     _emptystr,  lambda v: not v == "0", _emptystr ]
   return Task(_get)
 
 

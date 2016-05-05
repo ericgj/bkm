@@ -27,6 +27,7 @@ subprog_add.add_argument('--title', dest='title', type=str, default='', help="bo
 subprog_add.add_argument('-p, --private', dest='private', action="store_true", help="set private")
 subprog_add.set_defaults(func=add_cmd)
 
+# EXPORT COMMAND
 subprog_exp = subprog.add_parser('export', help='export bookmarks', description='Export all bookmarks', parents=[commonprog])
 subprog_exp.add_argument('format', type=str, choices=['xml'], help="output file format")
 subprog_exp.add_argument('-o, --out', dest='out', type=str, default='', help="output file")
