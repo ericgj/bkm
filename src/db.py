@@ -1,3 +1,4 @@
+from urlparse import urlparse
 import redis
 
 from f import curry, compose, identity, zipapply, flatten, flip, always
@@ -38,14 +39,18 @@ def link_text_index(link):
   title = link.get(u'title','')
   tags = link.get(u'tags',[])
   comment = link.get(u'comment','')
-  return (
-    index([
+  netloc = urlparse(url).netloc
+  domain = '.'.join(netloc.split('.')[-2:])
+  idxlists = (
+    [
       nonseq_list(10, set(tags) )                      # tag weight = 10
     , seq_list(    5, normalize(tokenize(title)) )     # title weight = 5
     , seq_list(    1, normalize(tokenize(comment)) )   # comment weight = 1
-    ])
+    ] 
+  ) + ( 
+    [] if len(domain)==0 else [nonseq_list(5, set([netloc,domain]) )]
   )
-
+  return index(idxlists)
 
 def connect(**kwargs):
   def _connect(rej,res):
@@ -70,7 +75,7 @@ def add_link(link, cnn):
     tags = link.get(u'tags',[])
     dt = link.get(u'date','0')
     idx = link_text_index(link)    
-
+    print idx
     try:
       pipe.zadd(dbkey_links(), int(dt), url)
       pipe.hmset(dbkey_link(url), link)
