@@ -27,16 +27,26 @@ def index_text(text):
   return index_seq(1,{},normalize(tokenize(text))).items()
 
 
+
+def nonseq_list(factor,words):
+  return (factor,False,words)
+
+def seq_list(factor,words):
+  return (factor,True,words)
+
 """
-Index given single-word list using given factor, e.g. for tags
-and given word sequence list with factor = 1, e.g. for normalized tokens
+Index multiple word-lists specified as (factor, is-sequential, words)
 """
-def index(factor,singles,seqs):
-  return index_seq(1, index_single(factor,{},singles), seqs).items()
+def index(wlists):
+  def _index(acc,(fac,isseq,words)):
+    if isseq:
+      return index_seq(fac,acc,words)
+    else:
+      return index_nonseq(fac,acc,words)
+  return reduce(_index, wlists, {}).items()
 
 
-
-def index_single(factor,init,words):
+def index_nonseq(factor,init,words):
   def _index(acc,word):
     k = index_key([word])
     if acc.has_key(k):

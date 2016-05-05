@@ -7,7 +7,7 @@ from taskmonad import Task
 import taskutil
 import err
 
-from search import tokenize, normalize, index_key, index, nwords
+from search import tokenize, normalize, index_key, index, nwords, seq_list, nonseq_list
 
 def dbkey_links():
   return u'links'
@@ -33,6 +33,19 @@ def dbkey_search_results_all(phrases):
 def dbkey_search_results_any(phrases):
   return u'search|results|any|%s' % u';'.join([u','.join(ph) for ph in phrases])
 
+def link_text_index(link):
+  url = link.get(u'link')
+  title = link.get(u'title','')
+  tags = link.get(u'tags',[])
+  comment = link.get(u'comment','')
+  return (
+    index([
+      nonseq_list(10, set(tags) )                      # tag weight = 10
+    , seq_list(    5, normalize(tokenize(title)) )     # title weight = 5
+    , seq_list(    1, normalize(tokenize(comment)) )   # comment weight = 1
+    ])
+  )
+
 
 def connect(**kwargs):
   def _connect(rej,res):
@@ -45,26 +58,19 @@ def connect(**kwargs):
   return Task(_connect)
 
 
+# Link -> Connection -> Task Error Int
 @curry
 def add_link(link, cnn):
   def _count(results):
-    return 1
+    return results[0]
 
   def _add(rej,res):
     pipe = cnn.pipeline()
     url = link.get(u'link')
-    title = link.get(u'title','')
     tags = link.get(u'tags',[])
-    comment = link.get(u'comment','')
-    dt = link.get(u'date',0)
-    idx = (
-      index(
-        10, 
-        tags, 
-        normalize(tokenize(title + " " + comment))
-      )
-    )
-    
+    dt = link.get(u'date','0')
+    idx = link_text_index(link)    
+
     try:
       pipe.zadd(dbkey_links(), int(dt), url)
       pipe.hmset(dbkey_link(url), link)
@@ -86,25 +92,18 @@ def add_link(link, cnn):
   return Task(_add).fmap(_count)
 
 
+# Link -> Connection -> Task Error Int
 @curry
 def del_link(link, cnn):
-  def _count(x):
-    return 1
+  def _count(results):
+    return results[0]
 
   def _del(rej,res):
     pipe = cnn.pipeline()
     url = link.get(u'link')
-    title = link.get(u'title','')
     tags = link.get(u'tags',[])
-    comment = link.get(u'comment','')
-    dt = link.get(u'date',0)
-    idx = (
-      index(
-        10, 
-        tags, 
-        normalize(tokenize(title + " " + comment))
-      )
-    )
+    dt = link.get(u'date','0')
+    idx = link_text_index(link)    
     
     try:
       pipe.zrem(dbkey_links(), url)
@@ -127,6 +126,7 @@ def del_link(link, cnn):
   return Task(_del).fmap(_count)
 
 
+# Link -> Connection -> Task Error Int
 @curry
 def upsert_link(link, cnn):
   def _maybe_del(mlink):
@@ -144,11 +144,13 @@ def upsert_link(link, cnn):
   )
 
 
+# List Link -> Connection -> Task Error Int
 @curry
 def add_links(links, cnn):
   execs = [add_link(link,cnn) for link in links]
   return taskutil.all(execs).fmap(lambda rs: len(rs))
 
+# List Link -> Connection -> Task Error Int
 @curry
 def upsert_links(links, cnn):
   execs = [upsert_link(link,cnn) for link in links]
@@ -159,7 +161,7 @@ def upsert_links(links, cnn):
 @curry
 def get_link(cnn, url):
   def _emptystr(x):
-    return '' if x is None else unicode(x)
+    return '' if x is None else x
 
   def _get(rej,res):
     try:

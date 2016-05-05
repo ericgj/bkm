@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from argparse import ArgumentParser
 from cmd.add import run as add_cmd
+from cmd.rm import run as rm_cmd
 from cmd.exp import run as exp_cmd
 
 def parse_tags(tstr):
@@ -26,6 +27,11 @@ subprog_add.add_argument('-t, --tags', dest='tags', type=parse_tags, default=[],
 subprog_add.add_argument('--title', dest='title', type=str, default='', help="bookmark title")
 subprog_add.add_argument('-p, --private', dest='private', action="store_true", help="set private")
 subprog_add.set_defaults(func=add_cmd)
+
+# RM COMMAND
+subprog_rm = subprog.add_parser('rm', help='delete a bookmark', description='Delete a bookmark', parents=[commonprog])
+subprog_rm.add_argument('url', metavar='URL', type=str)
+subprog_rm.set_defaults(func=rm_cmd)
 
 # EXPORT COMMAND
 subprog_exp = subprog.add_parser('export', help='export bookmarks', description='Export all bookmarks', parents=[commonprog])

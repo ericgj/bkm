@@ -12,7 +12,7 @@ def run(args):
 
   task = (
     (( db.connect() 
-         >> pass_through(db.add_link( build_link(args,inp,dt) )) )
+         >> pass_through(db.upsert_link( build_link(args,inp,dt) )) )
          >> (lambda (cnn,_): db.get_link(cnn, args.url)) )
   )
 
@@ -31,7 +31,7 @@ def handle_error(e):
   sys.exit(1)
 
 def view_no_link():
-  return "No link found, perhaps it wasn't saved correctly?"
+  return "No link found, perhaps it wasn't saved correctly?\nThat's weird. Try it again."
 
 def view_link(link):
   title = link.get('title','')
