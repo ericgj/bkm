@@ -48,7 +48,7 @@ def link_text_index(link):
     , seq_list(    1, normalize(tokenize(comment)) )   # comment weight = 1
     ] 
   ) + ( 
-    [] if len(domain)==0 else [nonseq_list(5, set([netloc,domain]) )]
+    [] if len(domain)==0 else [nonseq_list(5, set([netloc,domain]) )]  # domain/netloc weight = 5
   )
   return index(idxlists)
 

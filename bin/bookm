@@ -35,7 +35,7 @@ subprog_rm.set_defaults(func=rm_cmd)
 
 # EXPORT COMMAND
 subprog_exp = subprog.add_parser('export', help='export bookmarks', description='Export all bookmarks', parents=[commonprog])
-subprog_exp.add_argument('format', type=str, choices=['xml'], help="output file format")
+subprog_exp.add_argument('format', type=str, choices=['json','xml'], help="output file format")
 subprog_exp.add_argument('-o, --out', dest='out', type=str, default='', help="output file")
 subprog_exp.set_defaults(func=exp_cmd)
 

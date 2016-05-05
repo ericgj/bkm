@@ -1,4 +1,5 @@
 import sys
+import json
 
 from f import fapply, curry
 from taskutil import pass_through
@@ -14,6 +15,10 @@ def run(args):
     task = get_links(args) >> xml.build
     writer = xml_writer
   
+  elif args.format == 'json':
+    task = get_links(args)
+    writer = json_writer
+
   if task is None:
     sys.stderr.write("No such format found: %s\n" % args.format)
     sys.exit(1)
@@ -43,6 +48,9 @@ def get_links(args):
 
 def string_writer(s,f):
   f.write(s)
+
+def json_writer(obj,f):
+  json.dump(obj, f, encoding="utf-8", indent=2)
 
 def xml_writer(tree,f):
   tree.write(f, encoding="utf-8", xml_declaration=True, method="xml")
