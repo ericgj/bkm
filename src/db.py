@@ -75,7 +75,7 @@ def add_link(link, cnn):
     tags = link.get(u'tags',[])
     dt = link.get(u'date','0')
     idx = link_text_index(link)    
-    print idx
+    # print idx
     try:
       pipe.zadd(dbkey_links(), int(dt), url)
       pipe.hmset(dbkey_link(url), link)
@@ -114,7 +114,7 @@ def del_link(link, cnn):
       pipe.zrem(dbkey_links(), url)
       pipe.hdel(dbkey_link(url), *link.keys())
       if len(tags) > 0:
-        pipe.srem(dbkey_tags(), *tags)
+        # pipe.srem(dbkey_tags(), *tags)  # don't remove tags from global set
         pipe.srem(dbkey_link_tags(url), *tags)
 
       for tag in tags:
@@ -134,20 +134,10 @@ def del_link(link, cnn):
 # Link -> Connection -> Task Error Int
 @curry
 def upsert_link(link, cnn):
-  def _maybe_del(mlink):
-    return (
-      with_default(
-        taskutil.resolve(Nothing), 
-        mlink.fmap(flip(del_link)(cnn))
-      )
-    )
-  
   return (
-    (( get_link(cnn, link.get('link'))
-         >> _maybe_del )
-         >> always( add_link(link, cnn) ) )
+    get_and_del_link(link.get('url'), cnn) 
+      >> always( add_link(link, cnn) )
   )
-
 
 # List Link -> Connection -> Task Error Int
 @curry
@@ -161,6 +151,18 @@ def upsert_links(links, cnn):
   execs = [upsert_link(link,cnn) for link in links]
   return taskutil.all(execs).fmap(lambda rs: len(rs))
 
+@curry
+def get_and_del_link(url, cnn):
+  def _maybe_del(mlink):
+    return (
+      with_default(
+        taskutil.resolve(0), 
+        mlink.fmap(flip(del_link)(cnn))
+      )
+    )
+  
+  return get_link(cnn, url) >> _maybe_del
+  
 
 # Connection -> Url -> Task Error (Maybe Link)
 @curry

@@ -5,7 +5,7 @@ import db
 def run(args):
   task = (
     ( db.connect() 
-         >> db.del_link( {u'link': args.url} ) )
+         >> db.get_and_del_link(args.url) )
   )
 
   task.fork(handle_error, handle_success)

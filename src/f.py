@@ -50,6 +50,7 @@ def compose(*fs):
 def fmap(f,it):
   return map(f,it) 
 
+@curry
 def merge(d2,d1):
   return dict( d1.items() + d2.items() )
 

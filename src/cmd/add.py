@@ -1,23 +1,134 @@
 import sys
+import os
+import os.path
 from time import time
+from tempfile import NamedTemporaryFile
+import subprocess
+import re
 
+from f import merge, always, flip
 import db
-from taskutil import pass_through
+from taskmonad import Task
 from maybeutil import with_default
+import err
+
+COMMENT_PATTERN = re.compile('^#')
+
+class Aborted(Exception):
+  pass
 
 def run(args):
   dt = int(time())
-  sys.stderr.write("---> Enter comment, CTRL+D to finish <---\n")
-  inp = sys.stdin.readlines()
+  title = args.title
+  tags = args.tags
+  url = args.url
+  input = (
+    edit_link(title,url,'',tags)
+      .fmap(parse_link_form)
+      .fmap(merge({u'date': dt, u'link': url}))
+  )
 
   task = (
-    (( db.connect() 
-         >> pass_through(db.upsert_link( build_link(args,inp,dt) )) )
-         >> (lambda (cnn,_): db.get_link(cnn, args.url)) )
+    db.connect() 
+      >> ( lambda cnn: (
+             ( input 
+                 >> flip(db.upsert_link)(cnn) )
+                 >> always(db.get_link(cnn, url)) )
+         )
   )
 
   task.fork(handle_error, handle_success)
 
+
+def edit_link(title,link,comment,tags):
+  def _rm(tmp):
+    if os.path.exists(tmp):
+      os.remove(tmp)
+
+  def _edit(rej,res):
+    try:
+      buf = NamedTemporaryFile(prefix='link-', delete=False)
+      buf.write( template(title,link,comment,tags) )
+      buf.close()
+
+      ed = os.environ.get('EDITOR','vim')
+      subprocess.call([ed, buf.name], stdin=None, stdout=None, stderr=None)
+
+      lines = []
+      with open(buf.name) as f:
+        lines = f.readlines()
+      
+      _rm(buf.name)
+
+      if all( empty_or_comment_line(l) for l in lines ):
+        rej(Aborted('Link not added, file is empty.'))
+      else:
+        res(lines)
+
+    except Exception as e:
+      try:
+        _rm(buf.name)
+      except:
+        pass
+      rej(err.build(e))
+
+  return Task(_edit)
+
+
+def template(title,link,comment,tags):
+  header = [
+    "# Enter a title, longer comment, and tags for this link",
+    "# Any lines beginning with '#' and blank lines will be ignored",
+    "#",
+    "# " + link,
+    "#"
+  ]
+  titlelines = [
+    "# Title:",
+    "",
+    title
+  ]
+  commentlines = [
+    "# Longer Comment:",
+    "",
+    comment,
+    ""
+  ]
+  tagslines = [
+    "# Enter tags separated by commas, or on separate lines:",
+    "",
+    ", ".join(tags),
+    ""
+  ]
+  lines = header + titlelines + commentlines + tagslines
+  return "\n".join(lines)
+
+
+def parse_link_form(lines):
+  def _parse((section,last,title,comment,tags),line):
+    if empty_or_comment_line(line):
+      return (section,False,title,comment,tags)
+    else:
+      section = section if last else section+1
+      if section==0:
+        title = ("%s\n%s" % (title,line.strip())).strip()
+      elif section==1:
+        comment = ("%s\n%s" % (comment,line.strip())).strip()
+      elif section==2:
+        tags = tags + [t.strip() for t in line.split(",")]
+    return (section, True, title, comment, tags)
+
+  (title,comment,tags) = reduce(_parse, lines, (-1, False, '', '', []))[2:]
+  return {
+    u'title': title,
+    u'comment': comment,
+    u'tags': tags
+  }
+
+
+def empty_or_comment_line(line):
+  line = line.strip()
+  return len(line)==0 or COMMENT_PATTERN.match(line)
 
 
 def handle_success(link):
@@ -25,7 +136,8 @@ def handle_success(link):
   sys.stdout.write("\n")
 
 def handle_error(e):
-  sys.stderr.write("An internal error occurred.\n\n")
+  if not isinstance(e,Aborted):
+    sys.stderr.write("An internal error occurred.\n\n")
   sys.stderr.write(str(e))
   sys.stderr.write("\n")
   sys.exit(1)
@@ -40,45 +152,15 @@ def view_link(link):
   tags = ", ".join(link.get('tags',[]))
   return "\n".join(
     [
-      "=" * len(title),
-      title,
-      "=" * len(title),
       "",
-      url,
+      "# " + url,
+      "",
+      title,
       "",
       txt,
       "",
-      "(no tags)" if len(tags)==0 else "tags: " + tags
+      "(no tags)" if len(tags)==0 else "tags: " + tags,
+      ""
     ]
   )
-
-def parse_input(inp,title='',tags=[]):
-  def _parse((section,title,comment,tags),line):
-    if len(line.strip()) == 0:
-      return (section+1,title,comment,tags)
-    else:
-      if section==0:
-        title = ("%s\n%s" % (title,line.strip())).strip()
-      elif section==1:
-        comment = ("%s\n%s" % (comment,line.strip())).strip()
-      elif section==2:
-        tags = tags + line.strip().split(",")
-    return (section,title,comment,tags)
-
-  section = 0 if len(title) == 0 else 1
-  return reduce(_parse, inp, (section, title, '', tags))[1:]
-
-
-def build_link(args,inp,dt):
-  title, comment, tags = parse_input(inp,args.title,args.tags)
-  link = args.url
-  priv = args.private == True
-  return {
-    'link': link,
-    'title': title,
-    'tags': tags,
-    'comment': comment,
-    'date': dt,
-    'private': priv
-  }
 
