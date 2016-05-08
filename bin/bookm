@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 from argparse import ArgumentParser
 from cmd.add import run as add_cmd
 from cmd.rm import run as rm_cmd
+from cmd.srch import run as search_cmd
 from cmd.exp import run as exp_cmd
 
 def parse_tags(tstr):
@@ -16,28 +17,55 @@ def parse_tags(tstr):
 prog = ArgumentParser(description="URL bookmarks")
 
 commonprog = ArgumentParser(add_help=False)
-commonprog.add_argument('-c, --config', dest='config', type=str, help="backend config file (json)")
+commonprog.add_argument('-c, --config', dest='config', type=str, 
+             help="backend config file (json)")
 
 subprog = prog.add_subparsers()
 
+
 # ADD COMMAND
-subprog_add = subprog.add_parser('add', help='add a bookmark', description='Add a bookmark', parents=[commonprog])
+subprog_add = subprog.add_parser('add', 
+                help='add a bookmark', description='Add a bookmark', 
+                parents=[commonprog])
 subprog_add.add_argument('url', metavar='URL', type=str)
-subprog_add.add_argument('-t, --tags', dest='tags', type=parse_tags, default=[], help="comma-delimited tags")
-subprog_add.add_argument('--title', dest='title', type=str, default='', help="bookmark title")
-subprog_add.add_argument('-p, --private', dest='private', action="store_true", help="set private")
+subprog_add.add_argument('-t', '--tags', dest='tags', type=parse_tags, default=[], 
+              help="comma-delimited tags")
+subprog_add.add_argument('--title', dest='title', type=str, default='', 
+              help="bookmark title")
+subprog_add.add_argument('-p', '--private', dest='private', action="store_true", 
+              help="set private")
 subprog_add.set_defaults(func=add_cmd)
 
+
 # RM COMMAND
-subprog_rm = subprog.add_parser('rm', help='delete a bookmark', description='Delete a bookmark', parents=[commonprog])
+subprog_rm = subprog.add_parser('rm', 
+               help='delete a bookmark', description='Delete a bookmark', 
+               parents=[commonprog])
 subprog_rm.add_argument('url', metavar='URL', type=str)
 subprog_rm.set_defaults(func=rm_cmd)
 
+
+# SEARCH COMMAND
+subprog_search = subprog.add_parser('search', 
+                   help='search bookmarks', description='Search for bookmarks',
+                   parents=[commonprog])
+subprog_search.add_argument('-f', '--format', dest='format', choices=['json','xml'],
+                 help="output format")
+subprog_search.add_argument('terms', type=str, nargs='+')
+subprog_search.set_defaults(func=search_cmd)
+
+
 # EXPORT COMMAND
-subprog_exp = subprog.add_parser('export', help='export bookmarks', description='Export all bookmarks', parents=[commonprog])
-subprog_exp.add_argument('format', type=str, choices=['json','xml'], help="output file format")
-subprog_exp.add_argument('-o, --out', dest='out', type=str, default='', help="output file")
+subprog_exp = subprog.add_parser('export', 
+                help='export bookmarks', description='Export all bookmarks', 
+                parents=[commonprog])
+subprog_exp.add_argument('-f', '--format', dest='format', choices=['json','xml'], 
+              help="output file format")
+subprog_exp.add_argument('-o', '--out', dest='out', type=str, default='', 
+              help="output file")
 subprog_exp.set_defaults(func=exp_cmd)
+
+
 
 args = prog.parse_args()
 args.func(args)

@@ -6,11 +6,15 @@ EXCLUDES = [
 'will','with'
 ]
 
+CLEAN_PATTERN = re.compile('[,:;!?%+*<>"\'\(\)\[\]\{\}\\\/]') 
+DOT_PATTERN = re.compile('[.]\s+')
+
 def tokenize(text):
-  return re.split('\W+', clean(text))
+  return re.split('\s+', clean(text))
 
 def clean(text):
-  return re.sub('[.,:;!?%+*<>"\'\(\)\[\]\{\}\\\/]','',text).lower()
+  text = re.sub(CLEAN_PATTERN,'',text)
+  return re.sub(DOT_PATTERN, ' ',text).lower()  # to avoid cleaning domain names
 
 def normalize(words):
   return (
