@@ -1,7 +1,7 @@
 import sys
 import json
 
-from f import fapply, curry
+from f import curry, flip
 from taskutil import pass_through
 import db
 import xmlexport as xml
@@ -40,11 +40,9 @@ def handle_error(e):
   sys.exit(1)
 
 def get_links(args):
-  return (
-    (( db.connect() 
-         >> pass_through(db.find_all(-1)) )
-         >> fapply(db.get_links) )
-  )
+  def _get(cnn):
+    return db.find_all(-1,cnn) >> flip(db.get_links)(cnn)
+  return db.connect() >> _get 
 
 def string_writer(s,f):
   f.write(s)

@@ -161,12 +161,12 @@ def get_and_del_link(url, cnn):
       )
     )
   
-  return get_link(cnn, url) >> _maybe_del
+  return get_link(url,cnn) >> _maybe_del
   
 
-# Connection -> Url -> Task Error (Maybe Link)
+# Url -> Connection -> Task Error (Maybe Link)
 @curry
-def get_link(cnn, url):
+def get_link(url, cnn):
   def _emptystr(x):
     return '' if x is None else x
 
@@ -189,10 +189,10 @@ def get_link(cnn, url):
   return Task(_get)
 
 
-# Connection -> List Url -> Task Error (List Link)
+# List Url -> Connection -> Task Error (List Link)
 @curry
-def get_links(cnn, urls):
-  return taskutil.all( map(get_link(cnn),urls) ).fmap(all_of)
+def get_links(urls, cnn):
+  return taskutil.all( [get_link(url,cnn) for url in urls] ).fmap(all_of)
 
 
 # Int -> Connection -> Task Error (List Url)

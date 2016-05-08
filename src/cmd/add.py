@@ -33,7 +33,7 @@ def run(args):
       >> ( lambda cnn: (
              ( input 
                  >> flip(db.upsert_link)(cnn) )
-                 >> always(db.get_link(cnn, url)) )
+                 >> always(db.get_link(url,cnn)) )
          )
   )
 
